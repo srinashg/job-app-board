@@ -477,6 +477,50 @@ def _score_salary(job: Job, candidate: CandidateProfile) -> tuple[float, list[Qu
     return score, [Qualification(kind=kind, category="salary", label=label, detail=detail)], detail
 
 
+def _dedupe_qualifications(
+    quals: list[Qualification],
+) -> tuple[list[Qualification], list[Qualification], list[Qualification]]:
+    """Group qualifications by kind, showing each term in exactly one bucket.
+
+    A skill can surface from more than one signal — a job requirement and a
+    listed technology, say — which would otherwise repeat it, sometimes in two
+    different buckets at once. Each term is resolved to its best standing
+    (strong beats partial beats missing) and shown once, keeping the wording of
+    the first qualification that made that case.
+    """
+    precedence = {
+        MatchQualificationKind.STRONG: 0,
+        MatchQualificationKind.PARTIAL: 1,
+        MatchQualificationKind.MISSING: 2,
+    }
+
+    best_kind: dict[str, MatchQualificationKind] = {}
+    for qual in quals:
+        key = normalize(qual.label) or qual.label.lower()
+        current = best_kind.get(key)
+        if current is None or precedence[qual.kind] < precedence[current]:
+            best_kind[key] = qual.kind
+
+    buckets: dict[MatchQualificationKind, list[Qualification]] = {
+        MatchQualificationKind.STRONG: [],
+        MatchQualificationKind.PARTIAL: [],
+        MatchQualificationKind.MISSING: [],
+    }
+    emitted: set[str] = set()
+    for qual in quals:
+        key = normalize(qual.label) or qual.label.lower()
+        if key in emitted or best_kind[key] != qual.kind:
+            continue
+        emitted.add(key)
+        buckets[qual.kind].append(qual)
+
+    return (
+        buckets[MatchQualificationKind.STRONG],
+        buckets[MatchQualificationKind.PARTIAL],
+        buckets[MatchQualificationKind.MISSING],
+    )
+
+
 def _summarize(score: int, strong: int, missing: int, eligible: bool) -> str:
     if not eligible:
         return "Not eligible — a hard requirement rules this role out."
@@ -519,9 +563,7 @@ def score_job(job: Job, candidate: CandidateProfile) -> MatchResult:
             weight_total += weight
 
     percent = int(round(100 * weighted_total / weight_total)) if weight_total else 0
-    strong = [qual for qual in quals if qual.kind == MatchQualificationKind.STRONG]
-    partial = [qual for qual in quals if qual.kind == MatchQualificationKind.PARTIAL]
-    missing = [qual for qual in quals if qual.kind == MatchQualificationKind.MISSING]
+    strong, partial, missing = _dedupe_qualifications(quals)
 
     eligible = not blocking
     if not eligible:

@@ -2,7 +2,6 @@
 
 from functools import lru_cache
 
-from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,7 +33,10 @@ class Settings(BaseSettings):
     google_userinfo_url: str = "https://openidconnect.googleapis.com/v1/userinfo"
 
     # --- CORS --------------------------------------------------------------
-    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+    #: Comma-separated origin list. Kept as a string because pydantic-settings
+    #: JSON-decodes complex env values before validators run, which would
+    #: reject the plain "a,b" form documented in .env.example.
+    cors_origins: str = "http://localhost:3000"
 
     # --- Storage -----------------------------------------------------------
     resume_storage_dir: str = "./var/resumes"
@@ -50,12 +52,9 @@ class Settings(BaseSettings):
     ingest_request_timeout: float = 20.0
     playwright_enabled: bool = False
 
-    @field_validator("cors_origins", mode="before")
-    @classmethod
-    def _split_origins(cls, value: object) -> object:
-        if isinstance(value, str):
-            return [origin.strip() for origin in value.split(",") if origin.strip()]
-        return value
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     @property
     def is_production(self) -> bool:

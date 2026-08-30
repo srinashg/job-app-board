@@ -190,3 +190,64 @@ def test_the_score_is_traceable_to_its_qualifications(
     for qual in [*result.strong, *result.partial, *result.missing]:
         assert qual.category
         assert qual.label
+
+
+def test_a_term_is_listed_once_across_signals(
+    db: Session, user: User, company: Company
+) -> None:
+    """A skill that is both a requirement and a listed technology shows once."""
+    candidate = profile_for(db, user)
+    job = make_job(
+        db,
+        company,
+        required_skills=["python", "postgresql"],
+        technologies=["python", "postgresql"],
+    )
+    result = score_job(job, candidate)
+
+    strong_labels = [qual.label for qual in result.strong]
+    assert strong_labels.count("python") == 1
+    assert strong_labels.count("postgresql") == 1
+
+
+def test_a_gap_is_listed_once_and_never_alongside_a_strength(
+    db: Session, user: User, company: Company
+) -> None:
+    candidate = profile_for(db, user)
+    job = make_job(
+        db,
+        company,
+        required_skills=["python", "kafka"],
+        technologies=["python", "kafka"],
+    )
+    result = score_job(job, candidate)
+
+    missing_labels = [qual.label for qual in result.missing]
+    assert missing_labels.count("kafka") == 1
+    assert "python" not in missing_labels
+    assert "python" in [qual.label for qual in result.strong]
+
+
+def test_a_term_lands_in_exactly_one_bucket(
+    db: Session, user: User, company: Company
+) -> None:
+    """A nice-to-have the user has, also listed as a technology, is not both."""
+    candidate = profile_for(db, user)
+    job = make_job(
+        db,
+        company,
+        required_skills=["python"],
+        technologies=["python", "docker", "fastapi"],
+    )
+    result = score_job(job, candidate)
+
+    buckets = {
+        "strong": {qual.label for qual in result.strong},
+        "partial": {qual.label for qual in result.partial},
+        "missing": {qual.label for qual in result.missing},
+    }
+    assert not buckets["strong"] & buckets["partial"]
+    assert not buckets["strong"] & buckets["missing"]
+    assert not buckets["partial"] & buckets["missing"]
+    # A skill the user has is a strength, never a nice-to-have gap.
+    assert "docker" in buckets["strong"]
