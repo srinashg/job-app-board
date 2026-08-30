@@ -187,3 +187,36 @@ def test_page_text_classification_spots_closed_notices() -> None:
     assert classify_page_text("404 - Page Not Found").is_open is False
     assert classify_page_text("Apply now for this exciting role").is_open is True
     assert classify_page_text("").is_open is None
+
+
+def test_the_verifier_falls_back_to_http_without_a_browser() -> None:
+    """With Playwright enabled but no usable browser, the HTTP check decides."""
+    from app.services.ingest.verifier import JobVerifier
+
+    class StubFetcher:
+        def __init__(self, verdict: bool | None) -> None:
+            self.verdict = verdict
+            self.calls: list[str] = []
+
+        def get_json(self, url: str, params=None):  # pragma: no cover - unused here
+            raise AssertionError("verification must not fetch JSON")
+
+        def head_ok(self, url: str) -> bool | None:
+            self.calls.append(url)
+            return self.verdict
+
+    fetcher = StubFetcher(verdict=False)
+    verifier = JobVerifier(fetcher=fetcher, use_playwright=True)
+    result = verifier.verify("https://boards.example/gone")
+
+    assert result.is_open is False
+    assert result.method == "http"
+    assert fetcher.calls == ["https://boards.example/gone"]
+
+
+def test_the_verifier_reports_an_empty_url_rather_than_guessing() -> None:
+    from app.services.ingest.verifier import JobVerifier
+
+    result = JobVerifier(use_playwright=False).verify("")
+    assert result.is_open is None
+    assert result.method == "none"
