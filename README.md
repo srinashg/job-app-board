@@ -22,14 +22,15 @@ A job-search execution app that reduces endless browsing by giving users five re
 15. Privacy/account controls for resume deletion, account deletion, consent, and secure handling of personal data.
 
 ### Tech Stack
-- Angular + TypeScript
-- Java + Spring Boot
-- Spring Security + JWT
+- React + Next.js + TypeScript
+- Python + FastAPI
+- OAuth 2.0 + JWT
 - PostgreSQL
-- Spring Data JPA + Flyway
+- SQLAlchemy + Alembic
 - REST APIs
 - Docker
 - Playwright for job-source automation/verification
+- Pytest for backend testing
 
 ## **V2**
 
@@ -45,10 +46,10 @@ A job-search execution app that reduces endless browsing by giving users five re
 9. Better location intelligence with distance and estimated commute filtering using approximate location or ZIP code.
 
 ### Additional Tech Stack
-- Spring AI / LLM API
-- Vector embeddings for semantic job-resume matching
+- LLM API integration
+- Vector embeddings + pgvector for semantic job-resume matching
 - Geocoding/maps API
-- Scheduled background jobs for follow-ups and recommendation updates
+- Redis + Celery for scheduled follow-ups and recommendation updates
 
 ## **Future**
 
@@ -67,5 +68,4 @@ A job-search execution app that reduces endless browsing by giving users five re
 - Gmail API / Microsoft Graph
 - Google Calendar API / Microsoft Graph Calendar
 - Browser Extension APIs
-- Redis + job queue infrastructure
-- Mobile framework such as Flutter or React Native
+- Mobile framework such as React Native
