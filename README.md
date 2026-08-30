@@ -32,6 +32,116 @@ A job-search execution app that reduces endless browsing by giving users five re
 - Playwright for job-source automation/verification
 - Pytest for backend testing
 
+### Status
+
+The MVP is implemented. All fifteen features above are built end to end, with
+155 backend tests covering them.
+
+## Running it
+
+### With Docker
+
+```bash
+cp .env.example .env      # then edit SECRET_KEY and ENCRYPTION_KEY
+docker compose up --build
+```
+
+The web app is on <http://localhost:3000>, the API on <http://localhost:8000>,
+and the interactive API docs on <http://localhost:8000/docs>. Migrations run
+automatically when the API container boots.
+
+### Locally
+Requires Python 3.11+, Node 22+ and PostgreSQL 16.
+
+```bash
+cp backend/.env.example backend/.env
+createdb jobboard
+createdb jobboard_test  # only required for running tests
+
+make install     # backend venv + frontend node_modules
+make migrate     # apply Alembic migrations
+make seed        # sample jobs plus demo and admin accounts
+make api         # backend on :8000
+make web         # frontend on :3000 (separate terminal)
+```
+If your PostgreSQL username, password, host, or port differs from the defaults,
+update DATABASE_URL in backend/.env. Set TEST_DATABASE_URL when running tests
+against a different test database.
+
+```make seed``` creates demo@example.com / demo-password-1 and admin@example.com
+/ admin-password-1. Change or remove these accounts before deploying anywhere real.
+
+### Tests
+
+```bash
+make test        # pytest, needs a reachable Postgres
+make lint        # frontend typecheck
+```
+
+The suite uses a real PostgreSQL database (the schema is JSONB-heavy, so
+SQLite would not exercise the same code). Point it at one with
+`TEST_DATABASE_URL`; it defaults to a `jobboard_test` database on localhost.
+
+## How it is put together
+
+```
+backend/
+  app/
+    api/v1/      REST endpoints, one module per feature area
+    core/        configuration, JWT and password handling, dependencies
+    db/          declarative base, engine, session
+    models/      SQLAlchemy models
+    schemas/     Pydantic request/response contracts
+    services/    the logic: matching, batching, parsing, ingestion, dedupe
+      ingest/    one connector per ATS, plus the Playwright verifier
+    alembic/     migrations
+  scripts/seed.py
+  tests/         pytest suite, one module per feature area
+frontend/
+  app/           Next.js App Router pages
+  components/    shared UI
+  lib/           typed API client, auth context, formatting
+```
+
+### Design notes
+
+**Matching** is deterministic, not learned. Hard eligibility rules (sponsorship,
+clearance, citizenship, excluded companies, work setup, salary floor, posting
+age) gate a job out entirely; the remaining jobs get a weighted score across
+skills, technologies, title, experience, location and salary. Every point is
+traceable to a qualification line the user can read, and a signal with no data
+carries no weight rather than scoring zero.
+
+**Batches** hand out five jobs and refuse the next set until all five are
+applied to, skipped or marked unavailable. A `(user_id, job_id)` uniqueness
+constraint plus candidate-pool exclusion means a job is never recommended
+twice. Saving a job deliberately does not resolve it.
+
+**Job freshness** combines a fingerprint (company + normalised title +
+normalised location) with a title/description similarity check to catch the
+same role cross-posted through two sources. Listings can be re-verified from the
+admin page/API. Playwright renders the page because career sites often keep the URL
+alive and swap the body for a "no longer accepting applications" notice that an
+HTTP status check cannot see.
+
+**Personal data** — phone, home address and recruiter contact details — is
+encrypted with Fernet before it reaches the database. Deleting a resume removes
+the stored bytes, not just a row, and deleting an account cascades through
+every table and purges the files.
+
+Listing re-verification uses Playwright when `PLAYWRIGHT_ENABLED=true` and a
+browser is installed (`playwright install chromium`, or uncomment the line in
+`backend/Dockerfile`). Without it the verifier falls back to an HTTP check,
+which catches removed listings but not pages that stay up with a "no longer
+accepting applications" body.
+
+### Job sources
+
+Ingestion runs against public ATS APIs — Greenhouse, Lever and Ashby — which
+publish their boards for exactly this purpose. Adding a provider means writing
+one connector implementing `fetch` and `is_open` and registering it in
+`app/services/ingest/__init__.py`.
+
 ## **V2**
 
 ### Features — implementation order
