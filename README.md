@@ -51,20 +51,25 @@ and the interactive API docs on <http://localhost:8000/docs>. Migrations run
 automatically when the API container boots.
 
 ### Locally
+Requires Python 3.11+, Node 22+ and PostgreSQL 16.
 
 ```bash
+cp backend/.env.example backend/.env
+createdb jobboard
+createdb jobboard_test  # only required for running tests
+
 make install     # backend venv + frontend node_modules
 make migrate     # apply Alembic migrations
 make seed        # sample jobs plus demo and admin accounts
 make api         # backend on :8000
 make web         # frontend on :3000 (separate terminal)
 ```
+If your PostgreSQL username, password, host, or port differs from the defaults,
+update DATABASE_URL in backend/.env. Set TEST_DATABASE_URL when running tests
+against a different test database.
 
-`make seed` creates `demo@example.com` / `demo-password-1` and
-`admin@example.com` / `admin-password-1`. Change or remove them before
-deploying anywhere real.
-
-Requires Python 3.11+, Node 22+ and PostgreSQL 16.
+```make seed``` creates demo@example.com / demo-password-1 and admin@example.com
+/ admin-password-1. Change or remove these accounts before deploying anywhere real.
 
 ### Tests
 
@@ -114,8 +119,8 @@ twice. Saving a job deliberately does not resolve it.
 
 **Job freshness** combines a fingerprint (company + normalised title +
 normalised location) with a title/description similarity check to catch the
-same role cross-posted through two sources. Listings are re-verified on a
-schedule; Playwright renders the page because career sites often keep the URL
+same role cross-posted through two sources. Listings can be re-verified from the
+admin page/API. Playwright renders the page because career sites often keep the URL
 alive and swap the body for a "no longer accepting applications" notice that an
 HTTP status check cannot see.
 
